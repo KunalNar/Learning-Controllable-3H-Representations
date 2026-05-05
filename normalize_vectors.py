@@ -37,3 +37,4 @@ if __name__ == "__main__":
     normalize_vectors("7b", True, 32)
     normalize_vectors("7b", False, 32)
     normalize_vectors("13b", False, 36)
+    normalize_vectors("1b", False, 16)

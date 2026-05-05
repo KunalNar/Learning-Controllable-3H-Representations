@@ -16,7 +16,7 @@ set_plotting_settings()
 
 def get_caa_info(behavior: str, model_size: str, is_base: bool):
     all_vectors = []
-    n_layers = 36 if "13" in model_size else 32
+    n_layers = {"13b": 36, "7b": 32, "1b": 16}[model_size]
     model_path = get_model_path(model_size, is_base)
     for layer in range(n_layers):
         all_vectors.append(get_steering_vector(behavior, layer, model_path))

@@ -31,7 +31,7 @@ HUGGINGFACE_TOKEN = os.getenv("HF_TOKEN")
 
 
 class ComparisonDataset(Dataset):
-    def __init__(self, data_path, token, model_name_path, use_chat):
+    def __init__(self, data_path, token, model_name_path, use_chat, is_llama3=False):
         with open(data_path, "r") as f:
             self.data = json.load(f)
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -39,6 +39,7 @@ class ComparisonDataset(Dataset):
         )
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.use_chat = use_chat
+        self.is_llama3 = is_llama3
 
     def prompt_to_tokens(self, instruction, model_output):
         if self.use_chat:
@@ -46,6 +47,7 @@ class ComparisonDataset(Dataset):
                 self.tokenizer,
                 user_input=instruction,
                 model_output=model_output,
+                is_llama3=self.is_llama3,
             )
         else:
             tokens = tokenize_llama_base(
@@ -90,6 +92,7 @@ def generate_save_vectors_for_behavior(
         HUGGINGFACE_TOKEN,
         model.model_name_path,
         model.use_chat,
+        is_llama3=model.is_llama3,
     )
 
     for p_tokens, n_tokens in tqdm(dataset, desc="Processing prompts"):
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", nargs="+", type=int, default=list(range(32)))
     parser.add_argument("--save_activations", action="store_true", default=False)
     parser.add_argument("--use_base_model", action="store_true", default=False)
-    parser.add_argument("--model_size", type=str, choices=["7b", "13b"], default="7b")
+    parser.add_argument("--model_size", type=str, choices=["7b", "13b", "1b"], default="7b")
     parser.add_argument("--behaviors", nargs="+", type=str, default=ALL_BEHAVIORS)
 
     args = parser.parse_args()

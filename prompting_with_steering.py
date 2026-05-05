@@ -13,7 +13,7 @@ import argparse
 from typing import List, Dict, Optional
 from tqdm import tqdm
 from utils.helpers import get_a_b_probs
-from utils.tokenize import E_INST
+from utils.tokenize import E_INST, ADD_FROM_POS_CHAT_L3, L3_EOT
 from steering_settings import SteeringSettings
 from behaviors import (
     get_open_ended_test_data,
@@ -63,9 +63,16 @@ def process_item_open_ended(
     model_output = model.generate_text(
         user_input=question, system_prompt=system_prompt, max_new_tokens=100
     )
+    if model.is_llama3:
+        response = model_output.split(ADD_FROM_POS_CHAT_L3)[-1]
+        for tok in (L3_EOT, "<|end_of_text|>"):
+            response = response.replace(tok, "")
+        response = response.strip()
+    else:
+        response = model_output.split(E_INST)[-1].strip()
     return {
         "question": question,
-        "model_output": model_output.split(E_INST)[-1].strip(),
+        "model_output": response,
         "raw_model_output": model_output,
     }
 
@@ -136,7 +143,7 @@ def test_steering(
             vector = get_steering_vector(settings.behavior, settings.override_vector, name_path, normalized=True)
         else:
             vector = get_steering_vector(settings.behavior, layer, name_path, normalized=True)
-        if settings.model_size != "7b":
+        if settings.model_size == "13b":
             vector = vector.half()
         vector = vector.to(model.device)
         for multiplier in multipliers:
@@ -191,7 +198,7 @@ if __name__ == "__main__":
     parser.add_argument("--override_vector", type=int, default=None)
     parser.add_argument("--override_vector_model", type=str, default=None)
     parser.add_argument("--use_base_model", action="store_true", default=False)
-    parser.add_argument("--model_size", type=str, choices=["7b", "13b"], default="7b")
+    parser.add_argument("--model_size", type=str, choices=["7b", "13b", "1b"], default="7b")
     parser.add_argument("--override_model_weights_path", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true", default=False)
     

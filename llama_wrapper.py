@@ -2,12 +2,13 @@ import torch as t
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter
-from utils.helpers import add_vector_from_position, find_instruction_end_postion, get_model_path
+from utils.helpers import add_vector_from_position, find_instruction_end_postion, get_model_path, is_llama3_size
 from utils.tokenize import (
     tokenize_llama_chat,
     tokenize_llama_base,
     ADD_FROM_POS_BASE,
     ADD_FROM_POS_CHAT,
+    ADD_FROM_POS_CHAT_L3,
 )
 from typing import Optional
 
@@ -120,26 +121,31 @@ class LlamaWrapper:
     ):
         self.device = "cuda" if t.cuda.is_available() else "cpu"
         self.use_chat = use_chat
+        self.size = size
+        self.is_llama3 = is_llama3_size(size)
         self.model_name_path = get_model_path(size, not use_chat)
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name_path, token=hf_token
         )
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name_path, token=hf_token
         )
         if override_model_weights_path is not None:
             self.model.load_state_dict(t.load(override_model_weights_path))
-        if size != "7b":
+        if size == "13b":
             self.model = self.model.half()
         self.model = self.model.to(self.device)
         if use_chat:
-            self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_CHAT)[1:]).to(
-                self.device
-            )
+            marker = ADD_FROM_POS_CHAT_L3 if self.is_llama3 else ADD_FROM_POS_CHAT
+            self.END_STR = t.tensor(
+                self.tokenizer.encode(marker, add_special_tokens=False)
+            ).to(self.device)
         else:
-            self.END_STR = t.tensor(self.tokenizer.encode(ADD_FROM_POS_BASE)[1:]).to(
-                self.device
-            )
+            self.END_STR = t.tensor(
+                self.tokenizer.encode(ADD_FROM_POS_BASE, add_special_tokens=False)
+            ).to(self.device)
         for i, layer in enumerate(self.model.model.layers):
             self.model.model.layers[i] = BlockOutputWrapper(
                 layer, self.model.lm_head, self.model.model.norm, self.tokenizer
@@ -165,7 +171,7 @@ class LlamaWrapper:
     def generate_text(self, user_input: str, model_output: Optional[str] = None, system_prompt: Optional[str] = None, max_new_tokens: int = 50) -> str:
         if self.use_chat:
             tokens = tokenize_llama_chat(
-                tokenizer=self.tokenizer, user_input=user_input, model_output=model_output, system_prompt=system_prompt
+                tokenizer=self.tokenizer, user_input=user_input, model_output=model_output, system_prompt=system_prompt, is_llama3=self.is_llama3
             )
         else:
             tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)
@@ -182,7 +188,7 @@ class LlamaWrapper:
     def get_logits_from_text(self, user_input: str, model_output: Optional[str] = None, system_prompt: Optional[str] = None) -> t.Tensor:
         if self.use_chat:
             tokens = tokenize_llama_chat(
-                tokenizer=self.tokenizer, user_input=user_input, model_output=model_output, system_prompt=system_prompt
+                tokenizer=self.tokenizer, user_input=user_input, model_output=model_output, system_prompt=system_prompt, is_llama3=self.is_llama3
             )
         else:
             tokens = tokenize_llama_base(tokenizer=self.tokenizer, user_input=user_input, model_output=model_output)

@@ -64,13 +64,20 @@ def make_tensor_save_suffix(layer, model_name_path):
 
 
 def get_model_path(size: str, is_base: bool):
+    if size == "1b":
+        return "meta-llama/Llama-3.2-1B" if is_base else "meta-llama/Llama-3.2-1B-Instruct"
     if is_base:
         return f"meta-llama/Llama-2-{size}-hf"
     else:
         return f"meta-llama/Llama-2-{size}-chat-hf"
 
+def is_llama3_size(size: str) -> bool:
+    return size == "1b"
+
 def model_name_format(name: str) -> str:
     name = name.lower()
+    if "llama-3.2-1b" in name:
+        return "Llama 3.2 1B Instruct" if "instruct" in name else "Llama 3.2 1B"
     is_chat = "chat" in name
     is_7b = "7b" in name
     if is_chat:
