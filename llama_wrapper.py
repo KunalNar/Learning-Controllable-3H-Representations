@@ -2,7 +2,13 @@ import torch as t
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from matplotlib import pyplot as plt
 from matplotlib.ticker import ScalarFormatter
-from utils.helpers import add_vector_from_position, find_instruction_end_postion, get_model_path, is_llama3_size
+from utils.helpers import (
+    add_vector_from_position,
+    find_instruction_end_postion,
+    get_model_path,
+    is_llama3_size,
+    resolve_model_name,
+)
 from utils.tokenize import (
     tokenize_llama_chat,
     tokenize_llama_base,
@@ -60,7 +66,11 @@ class BlockOutputWrapper(t.nn.Module):
 
     def forward(self, *args, **kwargs):
         output = self.block(*args, **kwargs)
-        self.activations = output[0]
+        # transformers >=4.45 returns the hidden-state tensor directly from
+        # LlamaDecoderLayer.forward; older versions wrap it in a tuple.
+        is_tuple = isinstance(output, tuple)
+        hidden = output[0] if is_tuple else output
+        self.activations = hidden
         if self.calc_dot_product_with is not None:
             last_token_activations = self.activations[0, -1, :]
             decoded_activations = self.unembed_matrix(self.norm(last_token_activations))
@@ -72,18 +82,19 @@ class BlockOutputWrapper(t.nn.Module):
             self.dot_products.append((top_token, dot_product.cpu().item()))
         if self.add_activations is not None:
             augmented_output = add_vector_from_position(
-                matrix=output[0],
+                matrix=hidden,
                 vector=self.add_activations,
                 position_ids=kwargs["position_ids"],
                 from_pos=self.from_position,
             )
-            output = (augmented_output,) + output[1:]
+            hidden = augmented_output
+            output = (augmented_output,) + output[1:] if is_tuple else augmented_output
 
         if not self.save_internal_decodings:
             return output
 
         # Whole block unembedded
-        self.block_output_unembedded = self.unembed_matrix(self.norm(output[0]))
+        self.block_output_unembedded = self.unembed_matrix(self.norm(hidden))
 
         # Self-attention unembedded
         attn_output = self.block.self_attn.activations
@@ -118,12 +129,16 @@ class LlamaWrapper:
         size: str = "7b",
         use_chat: bool = True,
         override_model_weights_path: Optional[str] = None,
+        model_name: Optional[str] = None,
     ):
         self.device = "cuda" if t.cuda.is_available() else "cpu"
-        self.use_chat = use_chat
-        self.size = size
-        self.is_llama3 = is_llama3_size(size)
-        self.model_name_path = get_model_path(size, not use_chat)
+        if model_name is not None:
+            self.model_name_path, self.size, self.use_chat = resolve_model_name(model_name)
+        else:
+            self.use_chat = use_chat
+            self.size = size
+            self.model_name_path = get_model_path(size, not use_chat)
+        self.is_llama3 = is_llama3_size(self.size)
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.model_name_path, token=hf_token
         )
@@ -134,10 +149,10 @@ class LlamaWrapper:
         )
         if override_model_weights_path is not None:
             self.model.load_state_dict(t.load(override_model_weights_path))
-        if size == "13b":
+        if self.size == "13b":
             self.model = self.model.half()
         self.model = self.model.to(self.device)
-        if use_chat:
+        if self.use_chat:
             marker = ADD_FROM_POS_CHAT_L3 if self.is_llama3 else ADD_FROM_POS_CHAT
             self.END_STR = t.tensor(
                 self.tokenizer.encode(marker, add_special_tokens=False)

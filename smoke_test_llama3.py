@@ -26,7 +26,7 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 
 def main():
     print("Loading Llama-3.2-1B-Instruct wrapper...")
-    w = LlamaWrapper(hf_token=HF_TOKEN, size="1b", use_chat=True)
+    w = LlamaWrapper(hf_token=HF_TOKEN, model_name="Llama-3.2-1B-Instruct")
     print(f"  device: {w.device}, is_llama3: {w.is_llama3}")
     print(f"  pad_token: {w.tokenizer.pad_token}")
     print(f"  num layers: {len(w.model.model.layers)} (expected 16)")

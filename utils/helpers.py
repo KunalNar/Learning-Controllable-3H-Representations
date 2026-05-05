@@ -1,6 +1,22 @@
 import torch as t
 import matplotlib.pyplot as plt
 
+
+MODEL_NAME_ALIASES = {
+    "llama-3.2-1b": ("meta-llama/Llama-3.2-1B", "1b", False),
+    "meta-llama/llama-3.2-1b": ("meta-llama/Llama-3.2-1B", "1b", False),
+    "llama-3.2-1b-instruct": ("meta-llama/Llama-3.2-1B-Instruct", "1b", True),
+    "meta-llama/llama-3.2-1b-instruct": ("meta-llama/Llama-3.2-1B-Instruct", "1b", True),
+    "llama-2-7b-hf": ("meta-llama/Llama-2-7b-hf", "7b", False),
+    "meta-llama/llama-2-7b-hf": ("meta-llama/Llama-2-7b-hf", "7b", False),
+    "llama-2-7b-chat-hf": ("meta-llama/Llama-2-7b-chat-hf", "7b", True),
+    "meta-llama/llama-2-7b-chat-hf": ("meta-llama/Llama-2-7b-chat-hf", "7b", True),
+    "llama-2-13b-hf": ("meta-llama/Llama-2-13b-hf", "13b", False),
+    "meta-llama/llama-2-13b-hf": ("meta-llama/Llama-2-13b-hf", "13b", False),
+    "llama-2-13b-chat-hf": ("meta-llama/Llama-2-13b-chat-hf", "13b", True),
+    "meta-llama/llama-2-13b-chat-hf": ("meta-llama/Llama-2-13b-chat-hf", "13b", True),
+}
+
 def set_plotting_settings():
     plt.style.use('seaborn-v0_8')
     params = {
@@ -70,6 +86,16 @@ def get_model_path(size: str, is_base: bool):
         return f"meta-llama/Llama-2-{size}-hf"
     else:
         return f"meta-llama/Llama-2-{size}-chat-hf"
+
+
+def resolve_model_name(model_name: str):
+    normalized_name = model_name.strip().lower()
+    if normalized_name not in MODEL_NAME_ALIASES:
+        supported_names = ", ".join(sorted(MODEL_NAME_ALIASES))
+        raise ValueError(
+            f"Unsupported model_name '{model_name}'. Supported names: {supported_names}"
+        )
+    return MODEL_NAME_ALIASES[normalized_name]
 
 def is_llama3_size(size: str) -> bool:
     return size == "1b"
